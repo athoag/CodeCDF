@@ -1,5 +1,5 @@
 """
-nirspec_extract.py
+mosfire_extract.py
 
 Program to extract 1D spectra from reduced 2D MOSFIRE spectra.  These reduced
  spectra should be rectified and sky-subtracted, with the dispersion running
@@ -9,7 +9,7 @@ Program to extract 1D spectra from reduced 2D MOSFIRE spectra.  These reduced
 
 import numpy
 from scipy import interpolate
-from mostools import spectools as st
+# from mostoo ls import spectools as st
 import spec_simple as ss
 import ccdredux as c
 import pyfits as p
@@ -33,53 +33,73 @@ def clear_all():
 
 #-----------------------------------------------------------------------
 
-def read_mosfire_spec(filename, x1=0, x2=0, y1=0, y2=0, informat='new',
+def read_mosfire_spec(filename, x1=0, x2=0, y1=0, y2=0, informat='mosfire',
                       verbose=True):
-   """
-   Reads in a 2D spectrum produced by Matt Auger's niredux code.
-   New format (default):
+    """
+    Modified version of read_nirspec_spec
+    Reads in a 2D spectrum produced by Matt Auger's niredux code.
+    New format (default):
       hdu0 = 2D reduced spectrum
-      hdu1 = 2D variance spectrum
-   Old format:
+      hdu1 = 2D variance spectrum 
+    Old format:
       hdu0 = 2D reduced spectrum
       hdu1 = 1D wavelength vector
       hdu2 = 1D sky vector
-
-   Inputs:
+    Mosfire format:
+      hdu0 = 2d reduced spectrum from "eps" file
+      hdu1 = 2d reduced inverse variance spectrum from "ivar" file
+    
+    Inputs:
       filename - name of file containing reduced spectrum
       x1, etc. - numbers defining the section to trim out of the 2D spectrum,
                  if non-zero.  Defaults = 0
       informat - format of input file (see above). Default = 'new'
       verbose  - set to False to eliminate output
-   """
+    """
+    epsfile = filename
+    base = '_'.join(epsfile.split('_')[:-1])
+    ivarfile = base + '_ivar.fits'
 
-   if(verbose):
+    if(verbose):
       print "Reading file %s." % filename
 
-   try:
-      hdulist = p.open(filename)
-   except:
-      hdulist = p.open(filename,ignore_missing_end=True)
+    # except:
+    #   hdulist = p.open(epsfile,ignore_missing_end=True)
 
-   hdulist.info()
+    """ Trim the data if requested """
+    # xt1,xt2,yt1,yt2 = c.define_trimsec(hdulist[0],x1,x2,y1,y2)
+    # d = hdulist[0].data[yt1:yt2,xt1:xt2].copy()
 
-   """ Trim the data if requested """
-   xt1,xt2,yt1,yt2 = c.define_trimsec(hdulist[0],x1,x2,y1,y2)
-   d = hdulist[0].data[yt1:yt2,xt1:xt2].copy()
+    if informat=='mosfire':
+      hdueps = p.open(epsfile)
+      hduivar = p.open(ivarfile)
+      hdulist = [hdueps,hduivar]
+      hdreps = hdueps[0].header
+      hdrivar = hduivar[0].header  
+      # v = [1/x for x in numpy.median(hduivar[0].data.copy(),axis=0)] # List of variances
+      iv = hduivar[0].data.copy()
+      # print iv
+      d = hdueps[0].data.copy()
+      w = 1.0*numpy.arange(v.size) 
+      w *= hdreps['cd1_1']
+      w *= hdreps['crval1']
+    # hdulist.info()
+    # hdulist1.info()
 
-   if informat=='old':
-      w = hdulist[1].data.copy()
-      v = hdulist[2].data.copy()
-   else:
-      hdr = hdulist[0].header
-      v = numpy.median(hdulist[1].data[yt1:yt2,xt1:xt2].copy(),axis=0)
-      w = 1.0*numpy.arange(v.size) + 1.0*xt1
-      w *= hdr['cd1_1']
-      w += hdr['crval1']
 
-   hdulist.close()
+   # if informat=='old':
+   #    w = hdulist[1].data.copy()
+   #    v = hdulist[2].data.copy()
+   # else:
+   #    hdr = hdulist[0].header
+   #    v = numpy.median(hdulist[1].data[yt1:yt2,xt1:xt2].copy(),axis=0)
+   #    w = 1.0*numpy.arange(v.size) + 1.0*xt1
+   #    w *= hdr['cd1_1']
+   #    w += hdr['crval1']
 
-   return d,w,v
+    hdueps.close()
+    hduivar.close()
+    return d,w,iv
 
 #-----------------------------------------------------------------------
 
@@ -191,8 +211,9 @@ def nir_extract(filename, outname, x1=0, x2=0, y1=0, y2=0,
       plot.xlim([owave[0],owave[-1]])
 
    """ Write the output spectrum in the requested format """
-   if(outformat == 'mwa'):
-      st.make_spec(outspec,outvar,owave,outname,clobber=True)
-   else:
-      ss.save_spectrum(outname,owave,outspec,outvar)
+   # if(outformat == 'mwa'):
+   #    st.make_spec(outspec,outvar,owave,outname,clobber=True)
+   # else:
+   #    ss.save_spectrum(outname,owave,outspec,outvar)
+   ss.save_spectrum(outname,owave,outspec,outvar)
 
